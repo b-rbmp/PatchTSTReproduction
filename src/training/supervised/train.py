@@ -19,6 +19,7 @@ from src.utils.scheduler import adjust_lr
 from src.utils.metrics import calculate_metrics
 from src.utils.bootstrapping import calculate_bootstrap_statistics
 
+
 def visualize_results(input_truth, input_pred, path):
 
     plt.figure(figsize=(10, 5))
@@ -27,14 +28,16 @@ def visualize_results(input_truth, input_pred, path):
     plt.legend()
     plt.savefig(path, bbox_inches="tight")
     plt.close()
-    
+
+
 def get_model(config: TrainingConfig):
 
     # Get model
     if config.model == "PatchTST":
         model = PatchTST(configs=config)
-        
+
     return model
+
 
 def get_data_loader_manager(config: TrainingConfig) -> DataLoaderManager:
     # Get data loader parameters
@@ -48,11 +51,10 @@ def get_data_loader_manager(config: TrainingConfig) -> DataLoaderManager:
         use_time_features=True if config.embed == "timeFeatures" else False,
     )
     # Get data loaders
-    data_loader_manager = get_dataloaders(
-        data_loader_params
-    )
+    data_loader_manager = get_dataloaders(data_loader_params)
 
     return data_loader_manager
+
 
 def train_model(config: TrainingConfig, train_identifier: str, device: torch.device):
     # Get data loaders
@@ -87,7 +89,6 @@ def train_model(config: TrainingConfig, train_identifier: str, device: torch.dev
         final_div_factor=10000.0,
         three_phase=False,
         last_epoch=-1,
-        verbose=False,
         epochs=config.epochs,
     )
 
@@ -121,21 +122,33 @@ def train_model(config: TrainingConfig, train_identifier: str, device: torch.dev
                         y_hat = model(x)
                     else:
                         # Decoder input
-                        decoder_input = torch.zeros_like(y[:, -config.prediction_length:, :]).float()
-                        decoder_input = torch.cat(
-                            [y[:, :config.prediction_length, :], decoder_input], dim=1
-                        ).float().to(device)
+                        decoder_input = torch.zeros_like(
+                            y[:, -config.prediction_length :, :]
+                        ).float()
+                        decoder_input = (
+                            torch.cat(
+                                [y[:, : config.prediction_length, :], decoder_input],
+                                dim=1,
+                            )
+                            .float()
+                            .to(device)
+                        )
 
                         x, y, x_mark, y_mark = batch
-                        x, y, x_mark, y_mark = x.to(device), y.to(device), x_mark.to(device), y_mark.to(device)
+                        x, y, x_mark, y_mark = (
+                            x.to(device),
+                            y.to(device),
+                            x_mark.to(device),
+                            y_mark.to(device),
+                        )
                         if config.output_attention:
                             y_hat = model(x, x_mark, decoder_input, y_mark)[0]
                         else:
                             y_hat = model(x, x_mark, decoder_input, y_mark)
 
                     feature_dim = -1 if config.features == "MS" else 0
-                    y_hat = y_hat[:, -config.prediction_length:, feature_dim:]
-                    y = y[:, -config.prediction_length:, feature_dim:]
+                    y_hat = y_hat[:, -config.prediction_length :, feature_dim:]
+                    y = y[:, -config.prediction_length :, feature_dim:]
 
                     loss = criterion(y_hat, y)
 
@@ -151,20 +164,31 @@ def train_model(config: TrainingConfig, train_identifier: str, device: torch.dev
                     y_hat = model(x)
                 else:
                     # Decoder input
-                    decoder_input = torch.zeros_like(y[:, -config.prediction_length:, :]).float()
-                    decoder_input = torch.cat(
-                        [y[:, :config.prediction_length, :], decoder_input], dim=1
-                    ).float().to(device)
+                    decoder_input = torch.zeros_like(
+                        y[:, -config.prediction_length :, :]
+                    ).float()
+                    decoder_input = (
+                        torch.cat(
+                            [y[:, : config.prediction_length, :], decoder_input], dim=1
+                        )
+                        .float()
+                        .to(device)
+                    )
                     x, y, x_mark, y_mark = batch
-                    x, y, x_mark, y_mark = x.to(device), y.to(device), x_mark.to(device), y_mark.to(device)
+                    x, y, x_mark, y_mark = (
+                        x.to(device),
+                        y.to(device),
+                        x_mark.to(device),
+                        y_mark.to(device),
+                    )
                     if config.output_attention:
                         y_hat = model(x, x_mark, decoder_input, y_mark)[0]
                     else:
                         y_hat = model(x, x_mark, decoder_input, y_mark)
 
                 feature_dim = -1 if config.features == "MS" else 0
-                y_hat = y_hat[:, -config.prediction_length:, feature_dim:]
-                y = y[:, -config.prediction_length:, feature_dim:]
+                y_hat = y_hat[:, -config.prediction_length :, feature_dim:]
+                y = y[:, -config.prediction_length :, feature_dim:]
                 loss = criterion(y_hat, y)
 
                 loss.backward()
@@ -178,66 +202,100 @@ def train_model(config: TrainingConfig, train_identifier: str, device: torch.dev
                 scheduler.step()
 
         train_loss /= len(train_loader)
-        
+
         val_loss = 0
         model.eval()
         with torch.no_grad():
             if config.fp16:
                 # Use autocast for validation as well
                 with torch.amp.autocast(device_type=device.type):
-                    for batch in tqdm(val_loader, desc=f"Validation - Epoch {epoch + 1}/{config.epochs}"):
+                    for batch in tqdm(
+                        val_loader,
+                        desc=f"Validation - Epoch {epoch + 1}/{config.epochs}",
+                    ):
                         if config.model == "PatchTST" or "Linear" in config.model:
                             x, y = batch
                             x, y = x.to(device), y.to(device)
                             y_hat = model(x)
                         else:
                             # Decoder input
-                            decoder_input = torch.zeros_like(y[:, -config.prediction_length:, :]).float()
-                            decoder_input = torch.cat(
-                                [y[:, :config.prediction_length, :], decoder_input], dim=1
-                            ).float().to(device)
+                            decoder_input = torch.zeros_like(
+                                y[:, -config.prediction_length :, :]
+                            ).float()
+                            decoder_input = (
+                                torch.cat(
+                                    [
+                                        y[:, : config.prediction_length, :],
+                                        decoder_input,
+                                    ],
+                                    dim=1,
+                                )
+                                .float()
+                                .to(device)
+                            )
                             x, y, x_mark, y_mark = batch
-                            x, y, x_mark, y_mark = x.to(device), y.to(device), x_mark.to(device), y_mark.to(device)
+                            x, y, x_mark, y_mark = (
+                                x.to(device),
+                                y.to(device),
+                                x_mark.to(device),
+                                y_mark.to(device),
+                            )
                             if config.output_attention:
                                 y_hat = model(x, x_mark, decoder_input, y_mark)[0]
                             else:
                                 y_hat = model(x, x_mark, decoder_input, y_mark)
-                        
+
                         feature_dim = -1 if config.features == "MS" else 0
-                        y_hat = y_hat[:, -config.prediction_length:, feature_dim:]
-                        y = y[:, -config.prediction_length:, feature_dim:]
+                        y_hat = y_hat[:, -config.prediction_length :, feature_dim:]
+                        y = y[:, -config.prediction_length :, feature_dim:]
 
                         loss = criterion(y_hat, y)
                         val_loss += loss.item()
             else:
-                for batch in tqdm(val_loader, desc=f"Validation - Epoch {epoch + 1}/{config.epochs}"):
+                for batch in tqdm(
+                    val_loader, desc=f"Validation - Epoch {epoch + 1}/{config.epochs}"
+                ):
                     if config.model == "PatchTST" or "Linear" in config.model:
                         x, y = batch
                         x, y = x.to(device), y.to(device)
                         y_hat = model(x)
                     else:
                         # Decoder input
-                        decoder_input = torch.zeros_like(y[:, -config.prediction_length:, :]).float()
-                        decoder_input = torch.cat(
-                            [y[:, :config.prediction_length, :], decoder_input], dim=1
-                        ).float().to(device)
+                        decoder_input = torch.zeros_like(
+                            y[:, -config.prediction_length :, :]
+                        ).float()
+                        decoder_input = (
+                            torch.cat(
+                                [y[:, : config.prediction_length, :], decoder_input],
+                                dim=1,
+                            )
+                            .float()
+                            .to(device)
+                        )
                         x, y, x_mark, y_mark = batch
-                        x, y, x_mark, y_mark = x.to(device), y.to(device), x_mark.to(device), y_mark.to(device)
+                        x, y, x_mark, y_mark = (
+                            x.to(device),
+                            y.to(device),
+                            x_mark.to(device),
+                            y_mark.to(device),
+                        )
                         if config.output_attention:
                             y_hat = model(x, x_mark, decoder_input, y_mark)[0]
                         else:
                             y_hat = model(x, x_mark, decoder_input, y_mark)
-                    
+
                     feature_dim = -1 if config.features == "MS" else 0
-                    y_hat = y_hat[:, -config.prediction_length:, feature_dim:]
-                    y = y[:, -config.prediction_length:, feature_dim:]
-                    
+                    y_hat = y_hat[:, -config.prediction_length :, feature_dim:]
+                    y = y[:, -config.prediction_length :, feature_dim:]
+
                     loss = criterion(y_hat, y)
                     val_loss += loss.item()
 
         val_loss /= len(val_loader)
 
-        print(f"Epoch {epoch + 1}/{config.epochs} - Train Loss: {train_loss:.6f} - Val Loss: {val_loss:.6f}")
+        print(
+            f"Epoch {epoch + 1}/{config.epochs} - Train Loss: {train_loss:.6f} - Val Loss: {val_loss:.6f}"
+        )
 
         early_stopping(val_loss, model, optimizer, epoch)
         best_val_loss = early_stopping.best_metric
@@ -261,7 +319,9 @@ def train_model(config: TrainingConfig, train_identifier: str, device: torch.dev
     return model
 
 
-def test_model(model, config: TrainingConfig, train_identifier: str, device: torch.device):
+def test_model(
+    model, config: TrainingConfig, train_identifier: str, device: torch.device
+):
     # Get data loaders
     data_loader_manager = get_data_loader_manager(config)
     test_loader = data_loader_manager.test_loader
@@ -269,7 +329,7 @@ def test_model(model, config: TrainingConfig, train_identifier: str, device: tor
     # Get model and move to device
     model = model.to(device)
 
-    results_path = './test_results/' + train_identifier + '/'
+    results_path = "./test_results/" + train_identifier + "/"
     os.makedirs(results_path, exist_ok=True)
 
     model.eval()
@@ -290,20 +350,32 @@ def test_model(model, config: TrainingConfig, train_identifier: str, device: tor
                         y_hat = model(x)
                     else:
                         # Decoder input
-                        decoder_input = torch.zeros_like(y[:, -config.prediction_length:, :]).float()
-                        decoder_input = torch.cat(
-                            [y[:, :config.prediction_length, :], decoder_input], dim=1
-                        ).float().to(device)
+                        decoder_input = torch.zeros_like(
+                            y[:, -config.prediction_length :, :]
+                        ).float()
+                        decoder_input = (
+                            torch.cat(
+                                [y[:, : config.prediction_length, :], decoder_input],
+                                dim=1,
+                            )
+                            .float()
+                            .to(device)
+                        )
                         x, y, x_mark, y_mark = batch
-                        x, y, x_mark, y_mark = x.to(device), y.to(device), x_mark.to(device), y_mark.to(device)
+                        x, y, x_mark, y_mark = (
+                            x.to(device),
+                            y.to(device),
+                            x_mark.to(device),
+                            y_mark.to(device),
+                        )
                         if config.output_attention:
                             y_hat = model(x, x_mark, decoder_input, y_mark)[0]
                         else:
                             y_hat = model(x, x_mark, decoder_input, y_mark)
 
                     feature_dim = -1 if config.features == "MS" else 0
-                    y_hat = y_hat[:, -config.prediction_length:, feature_dim:]
-                    y = y[:, -config.prediction_length:, feature_dim:]
+                    y_hat = y_hat[:, -config.prediction_length :, feature_dim:]
+                    y = y[:, -config.prediction_length :, feature_dim:]
             else:
                 # Normal inference
                 if config.model == "PatchTST" or "Linear" in config.model:
@@ -312,20 +384,31 @@ def test_model(model, config: TrainingConfig, train_identifier: str, device: tor
                     y_hat = model(x)
                 else:
                     # Decoder input
-                    decoder_input = torch.zeros_like(y[:, -config.prediction_length:, :]).float()
-                    decoder_input = torch.cat(
-                        [y[:, :config.prediction_length, :], decoder_input], dim=1
-                    ).float().to(device)
+                    decoder_input = torch.zeros_like(
+                        y[:, -config.prediction_length :, :]
+                    ).float()
+                    decoder_input = (
+                        torch.cat(
+                            [y[:, : config.prediction_length, :], decoder_input], dim=1
+                        )
+                        .float()
+                        .to(device)
+                    )
                     x, y, x_mark, y_mark = batch
-                    x, y, x_mark, y_mark = x.to(device), y.to(device), x_mark.to(device), y_mark.to(device)
+                    x, y, x_mark, y_mark = (
+                        x.to(device),
+                        y.to(device),
+                        x_mark.to(device),
+                        y_mark.to(device),
+                    )
                     if config.output_attention:
                         y_hat = model(x, x_mark, decoder_input, y_mark)[0]
                     else:
                         y_hat = model(x, x_mark, decoder_input, y_mark)
 
                 feature_dim = -1 if config.features == "MS" else 0
-                y_hat = y_hat[:, -config.prediction_length:, feature_dim:]
-                y = y[:, -config.prediction_length:, feature_dim:]
+                y_hat = y_hat[:, -config.prediction_length :, feature_dim:]
+                y = y[:, -config.prediction_length :, feature_dim:]
 
             y_hat_detach = y_hat.detach().cpu().numpy()
             y_detach = y.detach().cpu().numpy()
@@ -335,12 +418,20 @@ def test_model(model, config: TrainingConfig, train_identifier: str, device: tor
             inputs.append(x_detach)
 
             if count % 20 == 0:
-                input_truth = np.concatenate((x_detach[0, :, -1], y_detach[0, :, -1]), axis=0)
-                input_pred = np.concatenate((x_detach[0, :, -1], y_hat_detach[0, :, -1]), axis=0)
-                visualize_results(input_truth, input_pred, os.path.join(results_path, f"sample_{count}.png"))
+                input_truth = np.concatenate(
+                    (x_detach[0, :, -1], y_detach[0, :, -1]), axis=0
+                )
+                input_pred = np.concatenate(
+                    (x_detach[0, :, -1], y_hat_detach[0, :, -1]), axis=0
+                )
+                visualize_results(
+                    input_truth,
+                    input_pred,
+                    os.path.join(results_path, f"sample_{count}.png"),
+                )
 
             count += 1
-        
+
         # Remove elements from list that are not homogeneous in last dimension
         # Example: Filter out any element if its second dimension doesn't match the max length in predictions.
         max_len = max(arr.shape[0] for arr in predictions)
@@ -392,7 +483,7 @@ if __name__ == "__main__":
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
-    
+
     # Enable CUDA
     use_cuda = config.use_cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
@@ -402,7 +493,7 @@ if __name__ == "__main__":
         torch.backends.cudnn.benchmark = False
 
     print(f"Device: {device}")
-    
+
     # Train model if in train mode
     if config.train_mode:
         metrics_dict = {}
