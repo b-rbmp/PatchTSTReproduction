@@ -1,0 +1,48 @@
+#!/bin/bash
+#SBATCH --job-name=patchtst             # Job name
+#SBATCH --partition=gpu                   # Partition (queue) to submit to
+#SBATCH --gres=gpu:1                      # Request 1 GPU (full GPU)
+#SBATCH --ntasks=1                        # Run a single task (1 instance of your program)
+#SBATCH --cpus-per-task=16                 # Number of CPU cores per task (adjust based on your needs)
+#SBATCH --mem=64G                         # Total memory (RAM) for the job (adjust based on your dataset)
+#SBATCH --time=24:00:00                    # Time limit (24 hours)
+#SBATCH --output=patchtst_%j.log               # Standard output and error log (%j is replaced by job ID)
+
+if [ ! -d "./logs" ]; then
+    mkdir ./logs
+fi
+
+if [ ! -d "./logs/supervised" ]; then
+    mkdir ./logs/supervised
+fi
+
+model_name=PatchTST
+model_identifier=patchtst_illness
+dataset=illness
+input_length=104
+
+for prediction_length in 24 36 48 60
+do
+    python -u src/training/supervised/train.py \
+      --train_mode \
+      --model_identifier $model_identifier'_'$input_length'_'$prediction_length \
+      --model $model_name \
+      --dataset $dataset \
+      --features M \
+      --input_length $input_length \
+      --prediction_length $prediction_length \
+      --encoder_input_size 7 \
+      --num_encoder_layers 3 \
+      --n_heads 4 \
+      --d_model 16 \
+      --d_fcn 128 \
+      --dropout 0.3 \
+      --fc_dropout 0.3 \
+      --head_dropout 0 \
+      --patch_length 24 \
+      --stride 2 \
+      --epochs 100 \
+      --patience 20 \
+      --learning_rate_adjustment constant \
+      --bootstrap_iterations 5 --batch_size 16 --learning_rate 0.0025 >logs/supervised/$model_identifier'_'$input_length'_'$prediction_length.log 
+done
